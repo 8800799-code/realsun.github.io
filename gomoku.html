@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>五子棋挑战 - 经典棋类游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#FF7D00',
+                        board: '#E6B86C',
+                        black: '#000000',
+                        white: '#FFFFFF',
+                        gray: {
+                            light: '#F5F7FA',
+                            medium: '#E5E6EB',
+                            dark: '#86909C'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'piece': '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+                        'button': '0 4px 6px -1px rgba(22, 93, 255, 0.3), 0 2px 4px -1px rgba(22, 93, 255, 0.2)',
+                    }
+                },
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .board-grid {
+                background-image: linear-gradient(to right, #000 1px, transparent 1px),
+                                linear-gradient(to bottom, #000 1px, transparent 1px);
+            }
+            .piece-transition {
+                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+            .btn-bounce {
+                transition: transform 0.2s ease;
+            }
+            .btn-bounce:active {
+                transform: scale(0.95);
+            }
+            .share-btn-hover {
+                transition: all 0.3s ease;
+            }
+            .share-btn-hover:hover {
+                transform: translateY(-3px);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-light min-h-screen flex flex-col">
+    <!-- 顶部广告位 -->
+    <div id="top-ad" class="w-full bg-white py-2 px-4 shadow-md">
+        <div class="bg-gray-200 h-16 w-full rounded-md flex items-center justify-center text-gray-dark text-sm">
+            <span>顶部广告位</span>
+        </div>
+    </div>
+
+    <!-- 游戏标题 -->
+    <header class="text-center py-4 px-4">
+        <h1 class="text-[clamp(1.5rem,5vw,2.5rem)] font-bold text-primary">五子棋挑战</h1>
+        <p class="text-gray-dark mt-1">先连成五子者获胜</p>
+    </header>
+
+    <!-- 游戏状态 -->
+    <div class="flex justify-center items-center mb-4 px-4">
+        <div id="game-status" class="bg-white py-2 px-6 rounded-full shadow-md text-primary font-medium">
+            黑方回合
+        </div>
+    </div>
+
+    <!-- 游戏棋盘区域 -->
+    <main class="flex-grow flex flex-col items-center justify-center px-4 pb-6">
+        <div class="relative">
+            <!-- 棋盘容器 -->
+            <div id="board-container" class="relative bg-board rounded-md shadow-lg overflow-hidden">
+                <!-- 棋盘将由JS生成 -->
+                <div id="board" class="board-grid"></div>
+                
+                <!-- 胜利提示覆盖层 -->
+                <div id="win-overlay" class="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-xl text-center transform transition-all duration-500 scale-100">
+                        <h2 id="winner-text" class="text-2xl font-bold mb-4 text-primary">黑方获胜！</h2>
+                        <button id="restart-btn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-6 rounded-full shadow-button btn-bounce">
+                            再来一局
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 游戏控制按钮 -->
+            <div class="flex justify-center mt-6 gap-4">
+                <button id="restart-game" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-6 rounded-full shadow-button flex items-center btn-bounce">
+                    <i class="fa fa-refresh mr-2"></i> 重新开始
+                </button>
+                <button id="undo-move" class="bg-white hover:bg-gray-100 text-primary border border-primary font-medium py-2 px-6 rounded-full shadow-md flex items-center btn-bounce">
+                    <i class="fa fa-undo mr-2"></i> 悔棋
+                </button>
+            </div>
+        </div>
+        
+        <!-- 棋子预览 -->
+        <div class="flex justify-center mt-6 gap-8">
+            <div class="flex flex-col items-center">
+                <div class="w-8 h-8 rounded-full bg-black shadow-piece"></div>
+                <span class="mt-2 text-gray-dark">黑方</span>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="w-8 h-8 rounded-full bg-white border-2 border-black shadow-piece"></div>
+                <span class="mt-2 text-gray-dark">白方</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- 分享区域 -->
+    <div class="bg-white py-4 px-6 shadow-inner">
+        <h3 class="text-center text-gray-dark mb-3">分享游戏</h3>
+        <div class="flex justify-center gap-6">
+            <button class="share-btn" data-platform="wechat" title="分享到微信">
+                <div class="w-12 h-12 rounded-full bg-[#07C160] flex items-center justify-center text-white share-btn-hover">
+                    <i class="fa fa-weixin text-xl"></i>
+                </div>
+                <span class="text-xs mt-1 block text-center text-gray-dark">微信</span>
+            </button>
+            <button class="share-btn" data-platform="wechat-moments" title="分享到微信朋友圈">
+                <div class="w-12 h-12 rounded-full bg-[#07C160] flex items-center justify-center text-white share-btn-hover">
+                    <i class="fa fa-share-alt text-xl"></i>
+                </div>
+                <span class="text-xs mt-1 block text-center text-gray-dark">朋友圈</span>
+            </button>
+            <button class="share-btn" data-platform="douyin" title="分享到抖音">
+                <div class="w-12 h-12 rounded-full bg-[#000000] flex items-center justify-center text-white share-btn-hover">
+                    <i class="fa fa-music text-xl"></i>
+                </div>
+                <span class="text-xs mt-1 block text-center text-gray-dark">抖音</span>
+            </button>
+            <button class="share-btn" data-platform="kuaishou" title="分享到快手">
+                <div class="w-12 h-12 rounded-full bg-[#00C65E] flex items-center justify-center text-white share-btn-hover">
+                    <i class="fa fa-play text-xl"></i>
+                </div>
+                <span class="text-xs mt-1 block text-center text-gray-dark">快手</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 底部广告位 -->
+    <div id="bottom-ad" class="w-full bg-white py-3 px-4 mt-2">
+        <div class="bg-gray-200 h-20 w-full rounded-md flex items-center justify-center text-gray-dark text-sm">
+            <span>底部广告位</span>
+        </div>
+    </div>
+
+    <!-- 游戏说明 -->
+    <footer class="text-center py-3 text-gray-dark text-xs">
+        <p>五子棋挑战 &copy; 2023 - 点击棋盘落子，先连成五子者获胜</p>
+    </footer>
+
+    <!-- 分享提示弹窗 -->
+    <div id="share-toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-80 text-white py-3 px-6 rounded-full shadow-lg hidden z-50">
+        <p id="share-message">请使用系统分享功能分享到微信</p>
+    </div>
+
+    <script>
+        // 游戏配置
+        const config = {
+            boardSize: 15, // 15x15棋盘
+            cellSize: 0,   // 将在初始化时计算
+            winningLength: 5 // 连成5子获胜
+        };
+
+        // 游戏状态
+        const gameState = {
+            currentPlayer: 'black', // 'black' 或 'white'
+            board: [],              // 棋盘状态
+            gameOver: false,        // 游戏是否结束
+            moveHistory: []         // 落子历史，用于悔棋
+        };
+
+        // DOM元素
+        const boardElement = document.getElementById('board');
+        const gameStatusElement = document.getElementById('game-status');
+        const restartButton = document.getElementById('restart-game');
+        const undoButton = document.getElementById('undo-move');
+        const winOverlay = document.getElementById('win-overlay');
+        const winnerText = document.getElementById('winner-text');
+        const restartBtnInOverlay = document.getElementById('restart-btn');
+        const shareButtons = document.querySelectorAll('.share-btn');
+        const shareToast = document.getElementById('share-toast');
+        const shareMessage = document.getElementById('share-message');
+
+        // 初始化游戏
+        function initGame() {
+            // 计算单元格大小，确保棋盘在各种屏幕上都能适配
+            const containerWidth = Math.min(window.innerWidth - 40, 500);
+            config.cellSize = containerWidth / config.boardSize;
+            
+            // 设置棋盘大小
+            boardElement.style.width = `${containerWidth}px`;
+            boardElement.style.height = `${containerWidth}px`;
+            boardElement.style.backgroundSize = `${config.cellSize}px ${config.cellSize}px`;
+            
+            // 初始化棋盘状态
+            gameState.board = Array(config.boardSize).fill().map(() => Array(config.boardSize).fill(null));
+            gameState.currentPlayer = 'black';
+            gameState.gameOver = false;
+            gameState.moveHistory = [];
+            
+            // 更新UI
+            updateGameStatus();
+            renderBoard();
+            
+            // 隐藏胜利提示
+            winOverlay.classList.add('hidden');
+        }
+
+        // 渲染棋盘
+        function renderBoard() {
+            // 清空棋盘
+            boardElement.innerHTML = '';
+            
+            // 绘制棋子
+            for (let row = 0; row < config.boardSize; row++) {
+                for (let col = 0; col < config.boardSize; col++) {
+                    const cellValue = gameState.board[row][col];
+                    if (cellValue) {
+                        const piece = document.createElement('div');
+                        piece.className = `absolute rounded-full shadow-piece piece-transition`;
+                        piece.style.width = `${config.cellSize * 0.8}px`;
+                        piece.style.height = `${config.cellSize * 0.8}px`;
+                        piece.style.left = `${col * config.cellSize + config.cellSize * 0.1}px`;
+                        piece.style.top = `${row * config.cellSize + config.cellSize * 0.1}px`;
+                        
+                        // 设置棋子颜色
+                        if (cellValue === 'black') {
+                            piece.classList.add('bg-black');
+                        } else {
+                            piece.classList.add('bg-white', 'border-2', 'border-black');
+                        }
+                        
+                        boardElement.appendChild(piece);
+                    }
+                }
+            }
+        }
+
+        // 更新游戏状态显示
+        function updateGameStatus() {
+            if (gameState.gameOver) {
+                gameStatusElement.textContent = `${gameState.currentPlayer === 'black' ? '白' : '黑'}方获胜！`;
+            } else {
+                gameStatusElement.textContent = `${gameState.currentPlayer === 'black' ? '黑' : '白'}方回合`;
+            }
+        }
+
+        // 处理棋盘点击
+        function handleBoardClick(event) {
+            if (gameState.gameOver) return;
+            
+            // 计算点击位置对应的棋盘坐标
+            const rect = boardElement.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            const col = Math.floor(x / config.cellSize);
+            const row = Math.floor(y / config.cellSize);
+            
+            // 检查坐标是否有效且该位置为空
+            if (row >= 0 && row < config.boardSize && col >= 0 && col < config.boardSize && !gameState.board[row][col]) {
+                // 落子
+                gameState.board[row][col] = gameState.currentPlayer;
+                gameState.moveHistory.push({row, col, player: gameState.currentPlayer});
+                
+                // 检查是否获胜
+                if (checkWin(row, col, gameState.currentPlayer)) {
+                    gameState.gameOver = true;
+                    showWinMessage();
+                } else {
+                    // 切换玩家
+                    gameState.currentPlayer = gameState.currentPlayer === 'black' ? 'white' : 'black';
+                }
+                
+                // 更新UI
+                renderBoard();
+                updateGameStatus();
+            }
+        }
+
+        // 检查是否获胜
+        function checkWin(row, col, player) {
+            const directions = [
+                [0, 1],  // 水平
+                [1, 0],  // 垂直
+                [1, 1],  // 对角线
+                [1, -1]  // 反对角线
+            ];
+            
+            for (const [dx, dy] of directions) {
+                let count = 1; // 当前位置已有一个棋子
+                
+                // 正向检查
+                for (let i = 1; i < config.winningLength; i++) {
+                    const newRow = row + i * dx;
+                    const newCol = col + i * dy;
+                    
+                    if (newRow < 0 || newRow >= config.boardSize || newCol < 0 || newCol >= config.boardSize) {
+                        break;
+                    }
+                    
+                    if (gameState.board[newRow][newCol] === player) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 反向检查
+                for (let i = 1; i < config.winningLength; i++) {
+                    const newRow = row - i * dx;
+                    const newCol = col - i * dy;
+                    
+                    if (newRow < 0 || newRow >= config.boardSize || newCol < 0 || newCol >= config.boardSize) {
+                        break;
+                    }
+                    
+                    if (gameState.board[newRow][newCol] === player) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 检查是否达到获胜长度
+                if (count >= config.winningLength) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        // 显示胜利消息
+        function showWinMessage() {
+            winnerText.textContent = `${gameState.currentPlayer === 'black' ? '黑' : '白'}方获胜！`;
+            winOverlay.classList.remove('hidden');
+        }
+
+        // 悔棋功能
+        function undoMove() {
+            if (gameState.moveHistory.length === 0 || gameState.gameOver) return;
+            
+            const lastMove = gameState.moveHistory.pop();
+            gameState.board[lastMove.row][lastMove.col] = null;
+            gameState.currentPlayer = lastMove.player; // 回到上一个玩家
+            
+            renderBoard();
+            updateGameStatus();
+        }
+
+        // 处理分享功能
+        function handleShare(platform) {
+            const shareTexts = {
+                'wechat': '请使用系统分享功能分享到微信',
+                'wechat-moments': '请使用系统分享功能分享到微信朋友圈',
+                'douyin': '请使用系统分享功能分享到抖音',
+                'kuaishou': '请使用系统分享功能分享到快手'
+            };
+            
+            // 显示分享提示
+            shareMessage.textContent = shareTexts[platform] || '请使用系统分享功能分享游戏';
+            shareToast.classList.remove('hidden');
+            
+            // 3秒后隐藏提示
+            setTimeout(() => {
+                shareToast.classList.add('hidden');
+            }, 3000);
+            
+            // 尝试调用Web Share API（部分浏览器支持）
+            if (navigator.share) {
+                navigator.share({
+                    title: '五子棋挑战',
+                    text: '我正在玩五子棋挑战，一起来玩吧！',
+                    url: window.location.href
+                }).catch(err => {
+                    console.log('分享失败:', err);
+                });
+            }
+        }
+
+        // 事件监听
+        boardElement.addEventListener('click', handleBoardClick);
+        restartButton.addEventListener('click', initGame);
+        undoButton.addEventListener('click', undoMove);
+        restartBtnInOverlay.addEventListener('click', initGame);
+        
+        // 分享按钮事件
+        shareButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const platform = button.getAttribute('data-platform');
+                handleShare(platform);
+            });
+        });
+        
+        // 窗口大小变化时重新初始化游戏
+        window.addEventListener('resize', initGame);
+
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>
